@@ -2,9 +2,6 @@ FROM python:3.10 AS builder
 
 WORKDIR /app
 
-# Build dependencies
-RUN apk add --no-cache gcc g++ musl-dev
-
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
