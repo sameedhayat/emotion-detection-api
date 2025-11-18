@@ -27,20 +27,18 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install only minimal system dependencies including execstack to fix ONNX Runtime
+# Install only minimal system dependencies including prelink for execstack
 RUN apt-get update && apt-get install -y \
     libgomp1 \
-    execstack \
+    prelink \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy runtime requirements (no transformers!)
 COPY requirements-runtime.txt .
 
-# Install only runtime dependencies
-RUN pip install --no-cache-dir -r requirements-runtime.txt
-
-# Fix ONNX Runtime executable stack permissions
-RUN find /usr/local/lib/python3.10 -name "*.so" -exec execstack -c {} \; 2>/dev/null || true
+# Fix ONNX Runtime executable stack permissions after installing packages
+RUN pip install --no-cache-dir -r requirements-runtime.txt && \
+    find /usr/local/lib/python3.10/dist-packages/onnxruntime -name "*.so" -exec execstack -c {} \; 2>/dev/null || true
 
 # Copy application code
 COPY main.py .
