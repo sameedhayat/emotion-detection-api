@@ -1,9 +1,10 @@
 """
-Convert Cardiff emotion model to ONNX and save tokenizer.
-This script runs during Docker build using transformers.onnx package.
+Convert Cardiff emotion model to ONNX using Optimum (recommended approach).
+This script runs during Docker build.
 """
 from pathlib import Path
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
 
 # Model configuration
 model_name = "cardiffnlp/twitter-roberta-base-emotion"
@@ -18,29 +19,28 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 tokenizer.save_pretrained(str(output_dir))
 print(f"Tokenizer saved to: {output_dir}")
 
-# Load model
-print("Loading model...")
-model = AutoModelForSequenceClassification.from_pretrained(model_name)
-
-# Export to ONNX using transformers.onnx
-print("Exporting to ONNX using transformers.onnx...")
-from transformers.onnx import export, FeaturesManager
-
-# Get the ONNX config for sequence classification
-model_kind, onnx_config_constructor = FeaturesManager.check_supported_model_or_raise(
-    model, feature="sequence-classification"
+# Convert model to ONNX using Optimum (recommended)
+print("Converting model to ONNX using Optimum...")
+model = ORTModelForSequenceClassification.from_pretrained(
+    model_name,
+    from_transformers=True  # This converts to ONNX automatically
 )
-onnx_config = onnx_config_constructor(model.config)
+model.save_pretrained(str(output_dir))
+print(f"ONNX model saved to: {output_dir}")
 
-# Export the model
-onnx_path = output_dir / "model.onnx"
-export(
-    tokenizer,
-    model,
-    onnx_config,
-    onnx_config.default_onnx_opset,
-    onnx_path
-)
+# Test the conversion
+print("\nTesting ONNX conversion...")
+test_text = "I am so happy today!"
+test_inputs = tokenizer(test_text, return_tensors="np", padding=True, truncation=True, max_length=512)
+outputs = model(**test_inputs)
+logits = outputs.logits[0]
 
-print(f"ONNX model saved to: {onnx_path}")
-print("\n✅ Conversion complete! Model and tokenizer ready for runtime.")
+from scipy.special import softmax
+probs = softmax(logits)
+labels = ["anger", "joy", "optimism", "sadness"]
+predicted_idx = probs.argmax()
+
+print(f"Test input: {test_text}")
+print(f"Predicted emotion: {labels[predicted_idx]}")
+print(f"Confidence: {probs[predicted_idx]:.4f}")
+print("\n✅ Conversion complete!")

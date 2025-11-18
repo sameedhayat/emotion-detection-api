@@ -79,7 +79,7 @@ async def load_model():
 
 def predict_emotion(text: str) -> Dict:
     """
-    Predict emotion for a single text using ONNX Runtime.
+    Predict emotion for a single text using Optimum ONNX Runtime.
     
     Args:
         text: Input text to analyze
@@ -88,26 +88,18 @@ def predict_emotion(text: str) -> Dict:
         Dictionary containing emotion label and scores
     """
     try:
-        # Tokenize using standalone tokenizer
-        encoding = tokenizer.encode(text)
-        input_ids = np.array([encoding.ids], dtype=np.int64)
-        attention_mask = np.array([encoding.attention_mask], dtype=np.int64)
+        # Tokenize input
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
         
-        # Run ONNX inference
-        ort_inputs = {
-            'input_ids': input_ids,
-            'attention_mask': attention_mask
-        }
-        outputs = ort_session.run(None, ort_inputs)
-        logits = outputs[0][0]
+        # Run inference with Optimum ONNX model
+        outputs = ort_model(**inputs)
+        logits = outputs.logits.detach().numpy()[0]
         
         # Apply softmax to get probabilities
         probabilities = softmax(logits)
         
-        # Get emotion labels
-        # Cardiff model labels: anger, joy, optimism, sadness
-        labels = ["anger", "joy", "optimism", "sadness"]
-        scores = {label: float(prob) for label, prob in zip(labels, probabilities)}
+        # Create scores dictionary
+        scores = {label: float(prob) for label, prob in zip(emotion_labels, probabilities)}
         
         # Get the emotion with highest score
         predicted_emotion = max(scores, key=scores.get)
@@ -138,13 +130,13 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    if ort_session is None or tokenizer is None:
+    if ort_model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     return {
         "status": "healthy",
         "model_loaded": True,
-        "runtime": "ONNX Runtime + standalone tokenizer"
+        "runtime": "Optimum ONNX Runtime"
     }
 
 
@@ -159,7 +151,7 @@ async def predict_single(request: TweetRequest):
     Returns:
         EmotionResponse with predicted emotion and scores
     """
-    if ort_session is None or tokenizer is None:
+    if ort_model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
@@ -185,7 +177,7 @@ async def predict_batch(request: BatchTweetRequest):
     Returns:
         BatchEmotionResponse with results for all texts
     """
-    if ort_session is None or tokenizer is None:
+    if ort_model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
