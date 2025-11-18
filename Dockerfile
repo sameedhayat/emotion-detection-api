@@ -21,12 +21,6 @@ FROM python:3.10
 
 WORKDIR /app
 
-# Minimal runtime deps + execstack if you want it
-RUN apk add --no-cache \
-    libstdc++ \
-    libgomp \
-    prelink   # this provides execstack
-
 COPY requirements-runtime.txt .
 RUN pip install --no-cache-dir -r requirements-runtime.txt
 
