@@ -1,55 +1,41 @@
-# Stage 1: Build stage - Convert model to ONNX with tokenizer
-FROM python:3.10-slim AS builder
+FROM python:3.10-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Build dependencies
+RUN apk add --no-cache gcc g++ musl-dev
 
-# Upgrade pip to avoid compatibility issues
+# Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install conversion dependencies
+# Install conversion deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy conversion script
+# Run ONNX conversion
 COPY convert_to_onnx.py .
-
-# Convert model to ONNX with embedded tokenizer
 RUN python convert_to_onnx.py
 
 # Stage 2: Runtime stage - Minimal final image
-FROM python:3.10-slim
+ROM python:3.10-alpine
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    libgomp1 \
-    execstack \
-    binutils \
-    && rm -rf /var/lib/apt/lists/*
+# Minimal runtime deps + execstack if you want it
+RUN apk add --no-cache \
+    libstdc++ \
+    libgomp \
+    prelink   # this provides execstack
 
-# Copy runtime requirements (no transformers!)
 COPY requirements-runtime.txt .
-
-# Fix ONNX Runtime executable stack permissions after installing packages
 RUN pip install --no-cache-dir -r requirements-runtime.txt
 
-# Copy application code
+# Copy app
 COPY main.py .
 
-# Copy converted ONNX model and tokenizer from builder stage
-COPY --from=builder /root/.cache/huggingface/emotion_model /root/.cache/huggingface/emotion_model
+# Copy the model from builder stage
+COPY --from=builder /app /app
 
-# Expose port
 EXPOSE 8000
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-
-# Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
