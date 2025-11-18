@@ -23,7 +23,7 @@ COPY convert_to_onnx.py .
 RUN python convert_to_onnx.py
 
 # Stage 2: Runtime stage - Minimal final image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -36,8 +36,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements-runtime.txt .
 
 # Fix ONNX Runtime executable stack permissions after installing packages
-RUN pip install --no-cache-dir -r requirements-runtime.txt && \
-    find /usr/local/lib/python3.10/dist-packages/onnxruntime -name "*.so" -exec execstack -c {} \; 2>/dev/null || true
+RUN pip install --no-cache-dir -r requirements-runtime.txt
 
 # Copy application code
 COPY main.py .
