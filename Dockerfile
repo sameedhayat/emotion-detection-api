@@ -1,4 +1,4 @@
-FROM python:3.10-alpine AS builder
+FROM python:3.10 AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY convert_to_onnx.py .
 RUN python convert_to_onnx.py
 
 # Stage 2: Runtime stage - Minimal final image
-FROM python:3.10-alpine
+FROM python:3.10
 
 WORKDIR /app
 
