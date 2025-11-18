@@ -30,7 +30,6 @@ WORKDIR /app
 # Install only minimal system dependencies including prelink for execstack
 RUN apt-get update && apt-get install -y \
     libgomp1 \
-    prelink \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy runtime requirements (no transformers!)
