@@ -1,6 +1,6 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-onnxruntime==1.15.1
+optimum[onnxruntime]==1.16.0
 tokenizers==0.15.0
 pydantic==2.5.0
 python-multipart==0.0.6
