@@ -1,7 +1,8 @@
 fastapi
 uvicorn[standard]
 onnxruntime
-onnxruntime-extensions
+tokenizers
 pydantic
 python-multipart
 numpy
+scipy

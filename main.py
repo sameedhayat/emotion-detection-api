@@ -4,8 +4,9 @@ from typing import List, Dict
 import logging
 import numpy as np
 from pathlib import Path
-from onnxruntime_extensions import get_library_path
+from tokenizers import Tokenizer
 import onnxruntime as ort
+from scipy.special import softmax
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -14,12 +15,13 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Emotion Detection API (ONNX Optimized)",
-    description="Fast emotion detection using ONNX Runtime with embedded tokenizer",
+    description="Fast emotion detection using ONNX Runtime with standalone tokenizer",
     version="2.0.0"
 )
 
-# Global variable for ONNX session
+# Global variables
 ort_session = None
+tokenizer = None
 
 
 class TweetRequest(BaseModel):
@@ -42,26 +44,29 @@ class BatchEmotionResponse(BaseModel):
 
 @app.on_event("startup")
 async def load_model():
-    """Load the complete ONNX model with embedded tokenizer."""
-    global ort_session
+    """Load the ONNX model and standalone tokenizer."""
+    global ort_session, tokenizer
     
     try:
-        logger.info("Loading ONNX optimized emotion detection model with tokenizer...")
+        logger.info("Loading ONNX model and tokenizer...")
         
-        # Find the complete ONNX model
-        model_path = Path.home() / ".cache" / "huggingface" / "onnx_models" / "emotion_complete.onnx"
+        # Find model directory
+        model_dir = Path.home() / ".cache" / "huggingface" / "emotion_model"
+        model_path = model_dir / "model.onnx"
+        tokenizer_path = model_dir / "tokenizer.json"
         
         if not model_path.exists():
-            raise FileNotFoundError(f"ONNX model not found at {model_path}. Build container properly.")
+            raise FileNotFoundError(f"ONNX model not found at {model_path}")
+        if not tokenizer_path.exists():
+            raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
         
-        # Create session options with onnxruntime-extensions
-        so = ort.SessionOptions()
-        so.register_custom_ops_library(get_library_path())
+        # Load ONNX model
+        ort_session = ort.InferenceSession(str(model_path))
         
-        # Load ONNX model with tokenizer
-        ort_session = ort.InferenceSession(str(model_path), so)
+        # Load standalone tokenizer
+        tokenizer = Tokenizer.from_file(str(tokenizer_path))
         
-        logger.info("ONNX model with embedded tokenizer loaded successfully!")
+        logger.info("ONNX model and tokenizer loaded successfully!")
     except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
         raise
@@ -70,7 +75,6 @@ async def load_model():
 def predict_emotion(text: str) -> Dict:
     """
     Predict emotion for a single text using ONNX Runtime.
-    The model includes the tokenizer, so we just pass raw text.
     
     Args:
         text: Input text to analyze
@@ -79,9 +83,21 @@ def predict_emotion(text: str) -> Dict:
         Dictionary containing emotion label and scores
     """
     try:
-        # Run inference with raw text (tokenizer is embedded in ONNX model)
-        outputs = ort_session.run(None, {'text': [text]})
-        probabilities = outputs[0][0]  # Get first (and only) batch item
+        # Tokenize using standalone tokenizer
+        encoding = tokenizer.encode(text)
+        input_ids = np.array([encoding.ids], dtype=np.int64)
+        attention_mask = np.array([encoding.attention_mask], dtype=np.int64)
+        
+        # Run ONNX inference
+        ort_inputs = {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask
+        }
+        outputs = ort_session.run(None, ort_inputs)
+        logits = outputs[0][0]
+        
+        # Apply softmax to get probabilities
+        probabilities = softmax(logits)
         
         # Get emotion labels
         # Cardiff model labels: anger, joy, optimism, sadness
@@ -117,13 +133,13 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    if ort_session is None:
+    if ort_session is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     return {
         "status": "healthy",
         "model_loaded": True,
-        "runtime": "ONNX with embedded tokenizer"
+        "runtime": "ONNX Runtime + standalone tokenizer"
     }
 
 
@@ -138,7 +154,7 @@ async def predict_single(request: TweetRequest):
     Returns:
         EmotionResponse with predicted emotion and scores
     """
-    if ort_session is None:
+    if ort_session is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
@@ -164,7 +180,7 @@ async def predict_batch(request: BatchTweetRequest):
     Returns:
         BatchEmotionResponse with results for all texts
     """
-    if ort_session is None:
+    if ort_session is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:

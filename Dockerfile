@@ -38,8 +38,8 @@ RUN pip install --no-cache-dir -r requirements-runtime.txt
 # Copy application code
 COPY main.py .
 
-# Copy converted ONNX model from builder stage
-COPY --from=builder /root/.cache/huggingface/onnx_models /root/.cache/huggingface/onnx_models
+# Copy converted ONNX model and tokenizer from builder stage
+COPY --from=builder /root/.cache/huggingface/emotion_model /root/.cache/huggingface/emotion_model
 
 # Expose port
 EXPOSE 8000

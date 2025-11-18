@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 optimum[onnxruntime]
 transformers
-onnxruntime-extensions
-onnx
 pydantic
 python-multipart
+scipy
 torch
