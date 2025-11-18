@@ -49,29 +49,4 @@ torch.onnx.export(
 )
 
 print(f"ONNX model saved to: {onnx_path}")
-
-# Test the export
-print("\nTesting ONNX export...")
-import onnxruntime as ort
-import numpy as np
-from scipy.special import softmax
-
-session = ort.InferenceSession(str(onnx_path))
-test_text = "I am so happy today!"
-test_inputs = tokenizer(test_text, return_tensors="np", padding=True, truncation=True, max_length=512)
-
-ort_inputs = {
-    'input_ids': test_inputs['input_ids'].astype(np.int64),
-    'attention_mask': test_inputs['attention_mask'].astype(np.int64)
-}
-outputs = session.run(None, ort_inputs)
-logits = outputs[0][0]
-probs = softmax(logits)
-
-labels = ["anger", "joy", "optimism", "sadness"]
-predicted_idx = probs.argmax()
-
-print(f"Test input: {test_text}")
-print(f"Predicted emotion: {labels[predicted_idx]}")
-print(f"Confidence: {probs[predicted_idx]:.4f}")
-print("\n✅ Conversion complete!")
+print("\n✅ Conversion complete! Model and tokenizer ready for runtime.")
