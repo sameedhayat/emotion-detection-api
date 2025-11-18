@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
+import numpy as np
 from typing import List, Dict
 import logging
+from scipy.special import softmax
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -11,15 +13,14 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Emotion Detection API",
-    description="API for detecting emotions in tweets using Cardiff NLP emotion model",
-    version="1.0.0"
+    title="Emotion Detection API (ONNX Optimized)",
+    description="Fast emotion detection using ONNX Runtime for efficient inference",
+    version="2.0.0"
 )
 
 # Global variables for model and tokenizer
 model = None
 tokenizer = None
-device = None
 
 
 class TweetRequest(BaseModel):
@@ -42,24 +43,21 @@ class BatchEmotionResponse(BaseModel):
 
 @app.on_event("startup")
 async def load_model():
-    """Load the Cardiff NLP emotion detection model on startup."""
-    global model, tokenizer, device
+    """Load the ONNX optimized emotion detection model on startup."""
+    global model, tokenizer
     
     try:
-        logger.info("Loading Cardiff NLP emotion detection model...")
+        logger.info("Loading ONNX optimized emotion detection model...")
         model_name = "cardiffnlp/twitter-roberta-base-emotion"
         
-        # Set device
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        logger.info(f"Using device: {device}")
-        
-        # Load tokenizer and model
+        # Load tokenizer and ONNX model
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForSequenceClassification.from_pretrained(model_name)
-        model.to(device)
-        model.eval()
+        model = ORTModelForSequenceClassification.from_pretrained(
+            model_name,
+            export=True  # Auto-convert to ONNX if not already converted
+        )
         
-        logger.info("Model loaded successfully!")
+        logger.info("ONNX model loaded successfully!")
     except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
         raise
@@ -67,7 +65,7 @@ async def load_model():
 
 def predict_emotion(text: str) -> Dict:
     """
-    Predict emotion for a single text.
+    Predict emotion for a single text using ONNX Runtime.
     
     Args:
         text: Input text to analyze
@@ -78,18 +76,18 @@ def predict_emotion(text: str) -> Dict:
     try:
         # Tokenize input
         inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
         
-        # Get predictions
-        with torch.no_grad():
-            outputs = model(**inputs)
-            logits = outputs.logits
-            probabilities = torch.softmax(logits, dim=-1)
+        # Get predictions with ONNX
+        outputs = model(**inputs)
+        logits = outputs.logits.detach().cpu().numpy()[0]
+        
+        # Apply softmax to get probabilities
+        probabilities = softmax(logits)
         
         # Get emotion labels
         # Cardiff model labels: anger, joy, optimism, sadness
         labels = ["anger", "joy", "optimism", "sadness"]
-        scores = {label: float(prob) for label, prob in zip(labels, probabilities[0])}
+        scores = {label: float(prob) for label, prob in zip(labels, probabilities)}
         
         # Get the emotion with highest score
         predicted_emotion = max(scores, key=scores.get)
@@ -126,7 +124,7 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": True,
-        "device": str(device)
+        "runtime": "ONNX"
     }
 
 
