@@ -23,7 +23,7 @@ COPY convert_to_onnx.py .
 RUN python convert_to_onnx.py
 
 # Stage 2: Runtime stage - Minimal final image
-FROM python:3.10-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
