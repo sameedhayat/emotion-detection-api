@@ -1,4 +1,4 @@
-FROM python:3.10 AS builder
+FROM python:3.10-slim AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY convert_to_onnx.py .
 RUN python convert_to_onnx.py
 
 # Stage 2: Runtime stage - Minimal final image
-FROM python:3.10
+FROM python:3.10-slim
 
 WORKDIR /app
 
