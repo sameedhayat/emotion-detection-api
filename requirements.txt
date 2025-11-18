@@ -1,8 +1,9 @@
-fastapi
-uvicorn[standard]
-optimum[onnxruntime]
-transformers
-pydantic
-python-multipart
-scipy
-torch
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+optimum[onnxruntime]==1.16.0
+transformers==4.35.2
+pydantic==2.5.0
+python-multipart==0.0.6
+scipy==1.11.4
+torch==2.1.1
+onnxruntime==1.16.3
