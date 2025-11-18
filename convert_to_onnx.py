@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 
 # Model configuration
 model_name = "cardiffnlp/twitter-roberta-base-emotion"
-output_dir = Path.home() / ".cache" / "huggingface" / "emotion_model"
+output_dir = Path("/app/model")
 output_dir.mkdir(parents=True, exist_ok=True)
 
 print(f"Converting model: {model_name}")

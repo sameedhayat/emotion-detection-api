@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements-runtime.txt
 COPY main.py .
 
 # Copy the model from builder stage
-COPY --from=builder /app /app
+COPY --from=builder /app/model /app/model
 
 EXPOSE 8000
 

@@ -3,9 +3,8 @@ from pydantic import BaseModel, Field
 from typing import List, Dict
 import logging
 import numpy as np
-from pathlib import Path
-from tokenizers import Tokenizer
-import onnxruntime as ort
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -19,8 +18,9 @@ app = FastAPI(
 )
 
 # Global variables
-ort_session = None
+ort_model = None
 tokenizer = None
+emotion_labels = ["anger", "joy", "optimism", "sadness"]
 
 
 class TweetRequest(BaseModel):
@@ -49,27 +49,19 @@ def softmax(x):
 
 @app.on_event("startup")
 async def load_model():
-    """Load the ONNX model and standalone tokenizer."""
-    global ort_session, tokenizer
+    """Load the ONNX model and tokenizer using Optimum."""
+    global ort_model, tokenizer
     
     try:
         logger.info("Loading ONNX model and tokenizer...")
         
-        # Find model directory
-        model_dir = Path.home() / ".cache" / "huggingface" / "emotion_model"
-        model_path = model_dir / "model.onnx"
-        tokenizer_path = model_dir / "tokenizer.json"
+        model_dir = "/app/model"
         
-        if not model_path.exists():
-            raise FileNotFoundError(f"ONNX model not found at {model_path}")
-        if not tokenizer_path.exists():
-            raise FileNotFoundError(f"Tokenizer not found at {tokenizer_path}")
+        # Load ONNX model using Optimum
+        ort_model = ORTModelForSequenceClassification.from_pretrained(model_dir)
         
-        # Load ONNX model
-        ort_session = ort.InferenceSession(str(model_path))
-        
-        # Load standalone tokenizer
-        tokenizer = Tokenizer.from_file(str(tokenizer_path))
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_dir)
         
         logger.info("ONNX model and tokenizer loaded successfully!")
     except Exception as e:
