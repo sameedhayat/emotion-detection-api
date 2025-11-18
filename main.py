@@ -6,7 +6,6 @@ import numpy as np
 from pathlib import Path
 from tokenizers import Tokenizer
 import onnxruntime as ort
-from scipy.special import softmax
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +39,12 @@ class EmotionResponse(BaseModel):
 
 class BatchEmotionResponse(BaseModel):
     results: List[EmotionResponse]
+
+
+def softmax(x):
+    """Compute softmax values using numpy."""
+    exp_x = np.exp(x - np.max(x))
+    return exp_x / exp_x.sum()
 
 
 @app.on_event("startup")
