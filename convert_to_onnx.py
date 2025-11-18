@@ -1,11 +1,9 @@
 """
 Convert Cardiff emotion model to ONNX and save tokenizer.
-This script runs during Docker build.
+This script runs during Docker build using transformers.onnx package.
 """
-import os
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
 
 # Model configuration
 model_name = "cardiffnlp/twitter-roberta-base-emotion"
@@ -14,38 +12,34 @@ output_dir.mkdir(parents=True, exist_ok=True)
 
 print(f"Converting model: {model_name}")
 
-# Load tokenizer and save
+# Load and save tokenizer
 print("Saving tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 tokenizer.save_pretrained(str(output_dir))
 print(f"Tokenizer saved to: {output_dir}")
 
-# Load PyTorch model
-print("Loading PyTorch model...")
+# Load model
+print("Loading model...")
 model = AutoModelForSequenceClassification.from_pretrained(model_name)
-model.eval()
 
-# Prepare dummy input for ONNX export
-dummy_text = "This is a sample text for ONNX export"
-inputs = tokenizer(dummy_text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+# Export to ONNX using transformers.onnx
+print("Exporting to ONNX using transformers.onnx...")
+from transformers.onnx import export, FeaturesManager
 
-# Export to ONNX
-print("Exporting to ONNX...")
+# Get the ONNX config for sequence classification
+model_kind, onnx_config_constructor = FeaturesManager.check_supported_model_or_raise(
+    model, feature="sequence-classification"
+)
+onnx_config = onnx_config_constructor(model.config)
+
+# Export the model
 onnx_path = output_dir / "model.onnx"
-
-torch.onnx.export(
+export(
+    tokenizer,
     model,
-    (inputs['input_ids'], inputs['attention_mask']),
-    str(onnx_path),
-    input_names=['input_ids', 'attention_mask'],
-    output_names=['logits'],
-    dynamic_axes={
-        'input_ids': {0: 'batch_size', 1: 'sequence'},
-        'attention_mask': {0: 'batch_size', 1: 'sequence'},
-        'logits': {0: 'batch_size'}
-    },
-    opset_version=14,
-    do_constant_folding=True
+    onnx_config,
+    onnx_config.default_onnx_opset,
+    onnx_path
 )
 
 print(f"ONNX model saved to: {onnx_path}")
