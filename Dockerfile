@@ -1,30 +1,45 @@
-# Use official Python runtime as base image
-FROM python:3.10-slim
+# Stage 1: Build stage - Convert model to ONNX with tokenizer
+FROM python:3.10-slim AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Install conversion dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy conversion script
+COPY convert_to_onnx.py .
+
+# Convert model to ONNX with embedded tokenizer
+RUN python convert_to_onnx.py
+
+# Stage 2: Runtime stage - Minimal final image
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install only minimal system dependencies
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy runtime requirements (no transformers!)
+COPY requirements-runtime.txt .
+
+# Install only runtime dependencies
+RUN pip install --no-cache-dir -r requirements-runtime.txt
 
 # Copy application code
 COPY main.py .
 
-# Pre-download and convert model to ONNX during build
-RUN python -c "from transformers import AutoTokenizer; \
-    from optimum.onnxruntime import ORTModelForSequenceClassification; \
-    model_name = 'cardiffnlp/twitter-roberta-base-emotion'; \
-    AutoTokenizer.from_pretrained(model_name); \
-    ORTModelForSequenceClassification.from_pretrained(model_name, export=True)"
+# Copy converted ONNX model from builder stage
+COPY --from=builder /root/.cache/huggingface/onnx_models /root/.cache/huggingface/onnx_models
 
 # Expose port
 EXPOSE 8000
