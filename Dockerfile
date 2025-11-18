@@ -17,7 +17,7 @@ COPY convert_to_onnx.py .
 RUN python convert_to_onnx.py
 
 # Stage 2: Runtime stage - Minimal final image
-ROM python:3.10-alpine
+FROM python:3.10-alpine
 
 WORKDIR /app
 
